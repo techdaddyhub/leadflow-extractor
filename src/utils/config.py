@@ -89,7 +89,7 @@ class CrawlConfig:
     concurrency_limit: int = 8
     timeout_seconds: int = 15
     
-    respect_robots_txt: bool = True
+    respect_robots_txt: bool = False
     follow_internal_only: bool = True
     enable_obfuscation_decoding: bool = True
     enable_mx_validation: bool = False

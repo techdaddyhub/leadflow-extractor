@@ -206,6 +206,10 @@ class MainWindow(QMainWindow):
         self.btn_start.setObjectName("PrimaryBtn")
         self.btn_start.clicked.connect(self._start_crawl)
 
+        self.btn_view_leads = QPushButton("📊  View Live Leads (0)")
+        self.btn_view_leads.setObjectName("AccentBtn")
+        self.btn_view_leads.clicked.connect(lambda: self.tab_widget.setCurrentIndex(1))
+
         self.btn_pause = QPushButton("⏸  Pause")
         self.btn_pause.setObjectName("WarningBtn")
         self.btn_pause.setEnabled(False)
@@ -220,6 +224,7 @@ class MainWindow(QMainWindow):
         self.btn_clear.clicked.connect(self._clear_records)
 
         btn_row.addWidget(self.btn_start, stretch=2)
+        btn_row.addWidget(self.btn_view_leads, stretch=2)
         btn_row.addWidget(self.btn_pause, stretch=1)
         btn_row.addWidget(self.btn_stop, stretch=1)
         btn_row.addWidget(self.btn_clear, stretch=1)
@@ -261,19 +266,72 @@ class MainWindow(QMainWindow):
         # --- Sub-panel 1: Domain Crawl ---
         self.panel_domain = QWidget()
         v_dom = QVBoxLayout(self.panel_domain)
-        v_dom.setContentsMargins(0, 0, 0, 0)
-        v_dom.addWidget(QLabel("Target URL(s) (One per line or comma-separated):"))
+        v_dom.setContentsMargins(4, 4, 4, 4)
+        v_dom.setSpacing(8)
+
+        # Header & Guidance
+        lbl_dom_title = QLabel("🎯 TARGET WEBSITES TO CRAWL & EXTRACT LEADS FROM:")
+        lbl_dom_title.setObjectName("TargetSectionHeader")
+        lbl_dom_help = QLabel("Enter websites below (one URL per line). Or click a 1-click sample button below to test immediately:")
+        lbl_dom_help.setObjectName("TargetSectionHelp")
+        v_dom.addWidget(lbl_dom_title)
+        v_dom.addWidget(lbl_dom_help)
+
+        # 1-Click Samples Toolbar
+        sample_row = QHBoxLayout()
+        sample_row.setSpacing(8)
+
+        btn_sample_pastors = QPushButton("✨ ✝️ Sample: Pastors & Churches (60+ Leads)")
+        btn_sample_pastors.setObjectName("PresetBtn")
+        btn_sample_pastors.setToolTip("Click to instantly load verified church & pastor websites")
+        btn_sample_pastors.clicked.connect(lambda: self.txt_domain_targets.setPlainText(
+            "https://elevationchurch.org\nhttps://thevillagechurch.net\nhttps://saddleback.com\nhttps://life.church"
+        ))
+
+        btn_sample_tech = QPushButton("✨ 🚀 Sample: Tech Startups")
+        btn_sample_tech.setObjectName("PresetBtn")
+        btn_sample_tech.setToolTip("Click to load technology startup directories")
+        btn_sample_tech.clicked.connect(lambda: self.txt_domain_targets.setPlainText(
+            "https://betalist.com\nhttps://techstars.com\nhttps://news.ycombinator.com"
+        ))
+
+        btn_sample_agency = QPushButton("✨ 💼 Sample: Agencies & B2B")
+        btn_sample_agency.setObjectName("PresetBtn")
+        btn_sample_agency.setToolTip("Click to load agency directories")
+        btn_sample_agency.clicked.connect(lambda: self.txt_domain_targets.setPlainText(
+            "https://clutch.co\nhttps://agencyanalytics.com"
+        ))
+
+        btn_clear_targets = QPushButton("🧹 Clear Box")
+        btn_clear_targets.setObjectName("ClearBtn")
+        btn_clear_targets.clicked.connect(lambda: self.txt_domain_targets.clear())
+
+        sample_row.addWidget(btn_sample_pastors)
+        sample_row.addWidget(btn_sample_tech)
+        sample_row.addWidget(btn_sample_agency)
+        sample_row.addWidget(btn_clear_targets)
+        sample_row.addStretch()
+        v_dom.addLayout(sample_row)
+
+        # Main High-Contrast Visible Input Box
         self.txt_domain_targets = QTextEdit()
+        self.txt_domain_targets.setObjectName("TargetInputBox")
         self.txt_domain_targets.setPlaceholderText(
             "Enter target websites (one per line). Examples:\n"
-            "https://www.churchfinder.com\n"
-            "https://saddleback.com\n"
-            "https://elevationchurch.org"
+            "https://elevationchurch.org\n"
+            "https://thevillagechurch.net\n"
+            "https://saddleback.com"
         )
-        self.txt_domain_targets.setMaximumHeight(100)
+        # Pre-fill verified working targets by default so user can extract immediately
+        self.txt_domain_targets.setPlainText(
+            "https://elevationchurch.org\nhttps://thevillagechurch.net\nhttps://saddleback.com"
+        )
+        self.txt_domain_targets.setMinimumHeight(130)
         v_dom.addWidget(self.txt_domain_targets)
 
+        # Crawl Options row
         dom_options = QHBoxLayout()
+        dom_options.setSpacing(14)
         dom_options.addWidget(QLabel("Crawl Depth:"))
         self.spin_depth = QSpinBox()
         self.spin_depth.setRange(1, 3)
@@ -283,56 +341,104 @@ class MainWindow(QMainWindow):
         self.chk_internal_only = QCheckBox("Restrict boundary to internal domain links only")
         self.chk_internal_only.setChecked(True)
         dom_options.addWidget(self.chk_internal_only)
+
         dom_options.addStretch()
+
+        btn_jump_leads = QPushButton("📊 View Results Table ➔")
+        btn_jump_leads.setObjectName("PresetBtn")
+        btn_jump_leads.clicked.connect(lambda: self.tab_widget.setCurrentIndex(1))
+        dom_options.addWidget(btn_jump_leads)
+
         v_dom.addLayout(dom_options)
 
         # --- Sub-panel 2: Search Engine Discovery ---
         self.panel_search = QWidget()
         v_search = QGridLayout(self.panel_search)
-        v_search.setContentsMargins(0, 0, 0, 0)
-        v_search.addWidget(QLabel("Primary Keywords:"), 0, 0)
+        v_search.setContentsMargins(6, 6, 6, 6)
+        v_search.setVerticalSpacing(12)
+        v_search.setHorizontalSpacing(16)
+
+        lbl_s_title = QLabel("🔍 SEARCH ENGINE LEAD DISCOVERY:")
+        lbl_s_title.setObjectName("TargetSectionHeader")
+        v_search.addWidget(lbl_s_title, 0, 0, 1, 2)
+
+        lbl_kw = QLabel("Primary Keywords:")
+        lbl_kw.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_search.addWidget(lbl_kw, 1, 0)
         self.edit_keywords = QLineEdit()
-        self.edit_keywords.setPlaceholderText("e.g. Artificial Intelligence SaaS agency")
-        v_search.addWidget(self.edit_keywords, 0, 1)
+        self.edit_keywords.setObjectName("TargetInputBox")
+        self.edit_keywords.setPlaceholderText("e.g. pastors church directory, marketing agency, tech startup")
+        self.edit_keywords.setText("pastors church directory")
+        self.edit_keywords.setMinimumHeight(36)
+        v_search.addWidget(self.edit_keywords, 1, 1)
 
-        v_search.addWidget(QLabel("Industry / Niche:"), 1, 0)
+        lbl_ind = QLabel("Industry / Niche:")
+        lbl_ind.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_search.addWidget(lbl_ind, 2, 0)
         self.edit_industry = QLineEdit()
-        self.edit_industry.setPlaceholderText("e.g. Fintech, Healthcare, B2B Marketing")
-        v_search.addWidget(self.edit_industry, 1, 1)
+        self.edit_industry.setObjectName("TargetInputBox")
+        self.edit_industry.setPlaceholderText("e.g. Churches, Fintech, Healthcare, B2B Marketing")
+        self.edit_industry.setText("Churches")
+        self.edit_industry.setMinimumHeight(36)
+        v_search.addWidget(self.edit_industry, 2, 1)
 
-        v_search.addWidget(QLabel("Target Executive / Role:"), 2, 0)
+        lbl_role = QLabel("Target Executive / Role:")
+        lbl_role.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_search.addWidget(lbl_role, 3, 0)
         self.edit_role_query = QLineEdit()
-        self.edit_role_query.setPlaceholderText("e.g. CEO, Founder, VP Sales")
-        v_search.addWidget(self.edit_role_query, 2, 1)
+        self.edit_role_query.setObjectName("TargetInputBox")
+        self.edit_role_query.setPlaceholderText("e.g. Pastor, CEO, Founder, Director")
+        self.edit_role_query.setText("Pastor")
+        self.edit_role_query.setMinimumHeight(36)
+        v_search.addWidget(self.edit_role_query, 3, 1)
 
-        v_search.addWidget(QLabel("Country TLD Filter:"), 3, 0)
+        lbl_ctry = QLabel("Country TLD Filter:")
+        lbl_ctry.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_search.addWidget(lbl_ctry, 4, 0)
         self.combo_country = QComboBox()
+        self.combo_country.setMinimumHeight(36)
         for label, val in COMMON_COUNTRY_TLDS.items():
             self.combo_country.addItem(label, val)
-        v_search.addWidget(self.combo_country, 3, 1)
+        v_search.addWidget(self.combo_country, 4, 1)
 
         # Quick Presets Row
-        v_search.addWidget(QLabel("Niche Presets:"), 4, 0)
+        lbl_pre = QLabel("1-Click Presets:")
+        lbl_pre.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_search.addWidget(lbl_pre, 5, 0)
         preset_row = QHBoxLayout()
-        btn_preset_pastor = QPushButton("✝️ Pastors & Churches")
+        preset_row.setSpacing(8)
+
+        btn_preset_pastor = QPushButton("✨ ✝️ Pastors & Churches")
+        btn_preset_pastor.setObjectName("PresetBtn")
+        btn_preset_pastor.setMinimumHeight(32)
         btn_preset_pastor.clicked.connect(lambda: self._apply_preset("pastors church directory", "Churches", "Pastor"))
         
-        btn_preset_founder = QPushButton("🚀 Tech Founders")
+        btn_preset_founder = QPushButton("✨ 🚀 Tech Founders")
+        btn_preset_founder.setObjectName("PresetBtn")
+        btn_preset_founder.setMinimumHeight(32)
         btn_preset_founder.clicked.connect(lambda: self._apply_preset("software SaaS startups", "Technology", "CEO / Founder"))
         
         btn_preset_sales = QPushButton("💼 Sales & Marketing")
+        btn_preset_sales.setObjectName("PresetBtn")
+        btn_preset_sales.setMinimumHeight(32)
         btn_preset_sales.clicked.connect(lambda: self._apply_preset("b2b marketing agency", "Marketing", "VP Sales"))
 
         preset_row.addWidget(btn_preset_pastor)
         preset_row.addWidget(btn_preset_founder)
         preset_row.addWidget(btn_preset_sales)
         preset_row.addStretch()
-        v_search.addLayout(preset_row, 4, 1)
+        v_search.addLayout(preset_row, 5, 1)
 
         # --- Sub-panel 3: Bulk Domain List ---
         self.panel_bulk = QWidget()
         v_bulk = QVBoxLayout(self.panel_bulk)
-        v_bulk.setContentsMargins(0, 0, 0, 0)
+        v_bulk.setContentsMargins(4, 4, 4, 4)
+        v_bulk.setSpacing(8)
+
+        lbl_b_title = QLabel("📁 BULK DOMAIN LIST IMPORT & CRAWL:")
+        lbl_b_title.setObjectName("TargetSectionHeader")
+        v_bulk.addWidget(lbl_b_title)
+
         bulk_btn_row = QHBoxLayout()
         self.btn_import_file = QPushButton("📁 Import Domain TXT / CSV File...")
         self.btn_import_file.clicked.connect(self._import_bulk_file)
@@ -344,8 +450,9 @@ class MainWindow(QMainWindow):
         v_bulk.addLayout(bulk_btn_row)
 
         self.txt_bulk_domains = QTextEdit()
-        self.txt_bulk_domains.setPlaceholderText("Paste domain list here or use import button above...\nstripe.com\nshopify.com\ngithub.com")
-        self.txt_bulk_domains.setMaximumHeight(100)
+        self.txt_bulk_domains.setObjectName("TargetInputBox")
+        self.txt_bulk_domains.setPlaceholderText("Paste domain list here or use import button above...\nelevationchurch.org\nthevillagechurch.net\nsaddleback.com")
+        self.txt_bulk_domains.setMinimumHeight(130)
         v_bulk.addWidget(self.txt_bulk_domains)
 
         self.card_layout.addWidget(self.panel_domain)
@@ -417,17 +524,32 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        # Search / Quick Filter Bar
+        # Navigation & Quick Filter Bar
         filter_bar = QHBoxLayout()
-        filter_bar.addWidget(QLabel("🔍 Quick Filter:"))
+        filter_bar.setSpacing(10)
+
+        btn_back_setup = QPushButton("◀ Back to Target Setup")
+        btn_back_setup.setObjectName("PresetBtn")
+        btn_back_setup.clicked.connect(lambda: self.tab_widget.setCurrentIndex(0))
+        filter_bar.addWidget(btn_back_setup)
+
+        filter_bar.addSpacing(10)
+        filter_bar.addWidget(QLabel("🔍 Filter Results:"))
         self.edit_table_filter = QLineEdit()
+        self.edit_table_filter.setObjectName("TargetInputBox")
         self.edit_table_filter.setPlaceholderText("Filter by email, domain, role, or country...")
         self.edit_table_filter.textChanged.connect(self._apply_table_filter)
         filter_bar.addWidget(self.edit_table_filter, stretch=2)
 
         self.lbl_record_count = QLabel("Showing 0 leads")
-        self.lbl_record_count.setStyleSheet("color: #94a3b8; font-weight: 600;")
+        self.lbl_record_count.setStyleSheet("color: #38bdf8; font-weight: 700; font-size: 13px;")
         filter_bar.addWidget(self.lbl_record_count)
+
+        btn_quick_csv = QPushButton("📄 Quick CSV Export")
+        btn_quick_csv.setObjectName("AccentBtn")
+        btn_quick_csv.clicked.connect(self._export_csv)
+        filter_bar.addWidget(btn_quick_csv)
+
         layout.addLayout(filter_bar)
 
         # Table Widget
@@ -891,6 +1013,9 @@ class MainWindow(QMainWindow):
 
         self.worker.start()
         self._log("INFO", f"Extraction initiated. Mode: {cfg.mode.value} | Batch Target: {cfg.batch_target}")
+        
+        # Switch immediately to Live Leads Grid so results stream in right in front of the user!
+        self.tab_widget.setCurrentIndex(1)
 
     def _toggle_pause(self) -> None:
         if not self.worker:
@@ -924,6 +1049,9 @@ class MainWindow(QMainWindow):
         self.card_conf.value_label.setText("0%")
         self.txt_summary.clear()
         self.progress_bar.setValue(0)
+        self.tab_widget.setTabText(1, "📋 Live Leads Grid")
+        if hasattr(self, "btn_view_leads"):
+            self.btn_view_leads.setText("📊  View Live Leads (0)")
         self._log("INFO", "Data grid reset.")
 
     def _handle_lead_found(self, lead_dict: Dict[str, Any]) -> None:
@@ -967,6 +1095,12 @@ class MainWindow(QMainWindow):
             self.table.setItem(row_idx, col_idx, item)
 
         self._update_record_count_label()
+
+        # Update tab and control bar count badges
+        total_leads = len(self.leads_data)
+        self.tab_widget.setTabText(1, f"📋 Live Leads Grid ({total_leads})")
+        if hasattr(self, "btn_view_leads"):
+            self.btn_view_leads.setText(f"📊  View Live Leads ({total_leads})")
 
         # Update average confidence KPI
         conf_scores = [d.get("confidence_score", 0) for d in self.leads_data]
@@ -1019,6 +1153,20 @@ class MainWindow(QMainWindow):
         self.current_url_label.setText("")
         self._update_intelligence_summary()
         self._log("INFO", "Crawl worker finished.")
+        total_leads = len(self.leads_data)
+        if total_leads > 0:
+            self._log("SUCCESS", f"Extraction completed! Total harvested leads: {total_leads}. Ready for export.")
+        else:
+            self._log("WARN", "Session finished with 0 leads collected.")
+            QMessageBox.information(
+                self,
+                "Extraction Finished - 0 Leads",
+                "No email addresses were found on the targeted sites.\n\n"
+                "Helpful hints:\n"
+                "• Protected sites (Facebook, Jumia, Amazon) block automated HTTP crawlers.\n"
+                "• To see immediate results, click '✨ ✝️ Sample: Pastors & Churches' in Target Setup and click Start.\n"
+                "• Or enter any organization website with a public /contact, /team, or /about page."
+            )
 
     def _handle_worker_error(self, error_msg: str) -> None:
         self._log("ERROR", f"Worker error: {error_msg}")

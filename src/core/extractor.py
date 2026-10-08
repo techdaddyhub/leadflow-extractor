@@ -167,9 +167,27 @@ class EmailExtractor:
         if "." not in domain_part:
             return False
 
-        # Exclude false positives ending in static asset extensions (e.g. photo@2x.png)
+        # Reject CDN paths or URLs in local part
+        if "/" in local_part or "\\" in local_part or "jsdelivr" in local_part or "unpkg" in local_part:
+            return False
+
+        # Reject phone numbers disguised as domains (e.g. 704.246.0864)
+        if re.search(r"\d+\.\d+\.\d+", domain_part):
+            return False
+
+        # Extract TLD
         ext = domain_part.rsplit(".", 1)[-1].lower()
+
+        # TLD must be alphabetic and at least 2 chars (no numbers like @3.12.5)
+        if not ext.isalpha() or len(ext) < 2:
+            return False
+
+        # Exclude false positives ending in static asset extensions (e.g. photo@2x.png)
         if ext in self.INVALID_EXTENSIONS:
+            return False
+
+        # Exclude common sentence words captured after period (e.g. email.com.How -> email.com)
+        if ext in {"how", "where", "view", "about", "from", "to", "is", "the", "you", "and", "or", "with", "at", "what", "why"}:
             return False
 
         # Local part cannot start or end with dot

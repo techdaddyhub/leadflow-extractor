@@ -186,17 +186,127 @@ QPushButton#AccentBtn:pressed {
 }
 
 /* Line Edits & Text Areas */
-QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QComboBox {
-    background-color: #1c1e24;
-    border: 1px solid #2a2e3d;
+QLineEdit {
+    background-color: #0e121e;
+    border: 1.5px solid #3d4566;
     border-radius: 6px;
-    padding: 8px 12px;
-    color: #f8fafc;
+    padding: 4px 10px;
+    color: #ffffff;
+    font-size: 13px;
+    min-height: 28px;
 }
 
-QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus, QComboBox:focus {
-    border: 1px solid #6366f1;
-    background-color: #1f2129;
+QLineEdit:focus {
+    border: 2px solid #818cf8;
+    background-color: #14192a;
+}
+
+QComboBox, QSpinBox {
+    background-color: #0e121e;
+    border: 1.5px solid #3d4566;
+    border-radius: 6px;
+    padding: 4px 10px;
+    color: #ffffff;
+    font-size: 13px;
+    min-height: 28px;
+}
+
+QComboBox:focus, QSpinBox:focus {
+    border: 2px solid #818cf8;
+    background-color: #14192a;
+}
+
+QTextEdit, QPlainTextEdit {
+    background-color: #0e121e;
+    border: 1.5px solid #3d4566;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: #ffffff;
+    font-size: 13px;
+}
+
+QTextEdit:focus, QPlainTextEdit:focus {
+    border: 2px solid #818cf8;
+    background-color: #14192a;
+}
+
+/* High-Contrast Target Input Box - Ultra Sharp & Visible */
+QTextEdit#TargetInputBox {
+    background-color: #070913;
+    border: 2px solid #818cf8;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: Consolas, "Segoe UI", monospace;
+    font-weight: 500;
+    color: #ffffff;
+}
+
+QLineEdit#TargetInputBox {
+    background-color: #070913;
+    border: 2px solid #818cf8;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #ffffff;
+    min-height: 28px;
+}
+
+QTextEdit#TargetInputBox:focus, QLineEdit#TargetInputBox:focus {
+    border: 2px solid #38bdf8;
+    background-color: #0c1022;
+}
+
+/* Preset Quick Action Buttons */
+QPushButton#PresetBtn {
+    background-color: #1e1b4b;
+    color: #e0e7ff;
+    border: 1.5px solid #6366f1;
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-weight: 700;
+    font-size: 12px;
+    min-height: 20px;
+}
+
+QPushButton#PresetBtn:hover {
+    background-color: #3730a3;
+    color: #ffffff;
+    border-color: #a5b4fc;
+}
+
+QPushButton#PresetBtn:pressed {
+    background-color: #4338ca;
+}
+
+QPushButton#ClearBtn {
+    background-color: #27272a;
+    color: #cbd5e1;
+    border: 1px solid #3f3f46;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-weight: 600;
+    font-size: 12px;
+    min-height: 20px;
+}
+
+QPushButton#ClearBtn:hover {
+    background-color: #3f3f46;
+    color: #ffffff;
+}
+
+/* Target Section Title */
+QLabel#TargetSectionHeader {
+    color: #a5b4fc;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+QLabel#TargetSectionHelp {
+    color: #94a3b8;
+    font-size: 12px;
 }
 
 QComboBox::drop-down {
@@ -266,31 +376,52 @@ QProgressBar::chunk {
 }
 
 /* CheckBoxes & Radio Buttons */
-QCheckBox, QRadioButton {
+QCheckBox {
     spacing: 8px;
     color: #cbd5e1;
     font-weight: 500;
+    font-size: 13px;
 }
 
-QCheckBox::indicator, QRadioButton::indicator {
-    width: 18px;
-    height: 18px;
-    border: 1px solid #3d4256;
-    background-color: #1c1e24;
+QCheckBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #4f46e5;
     border-radius: 4px;
+    background-color: #0e121e;
+}
+
+QCheckBox::indicator:hover {
+    border-color: #818cf8;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #6366f1;
+    border-color: #6366f1;
+}
+
+QRadioButton {
+    spacing: 8px;
+    color: #e2e8f0;
+    font-weight: 600;
+    font-size: 13px;
 }
 
 QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #6366f1;
     border-radius: 9px;
+    background-color: #101420;
 }
 
-QCheckBox::indicator:hover, QRadioButton::indicator:hover {
-    border-color: #6366f1;
+QRadioButton::indicator:hover {
+    border-color: #a5b4fc;
 }
 
-QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+QRadioButton::indicator:checked {
     background-color: #6366f1;
-    border-color: #6366f1;
+    border: 4px solid #101420;
 }
 
 /* Group Boxes */
@@ -298,7 +429,7 @@ QGroupBox {
     border: 1px solid #282b37;
     border-radius: 8px;
     margin-top: 14px;
-    padding-top: 14px;
+    padding-top: 16px;
     font-weight: 700;
     color: #cbd5e1;
 }
@@ -308,7 +439,10 @@ QGroupBox::title {
     subcontrol-position: top left;
     padding: 0 8px;
     color: #818cf8;
+    font-weight: 700;
+    font-size: 12px;
 }
+
 
 /* Scroll Bars */
 QScrollBar:vertical {

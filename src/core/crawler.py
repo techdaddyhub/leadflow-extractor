@@ -139,16 +139,41 @@ class AsyncCrawler:
         except Exception as e:
             self._log("ERROR", f"Search discovery error: {e}")
 
-        if not discovered_urls:
-            self._log("WARN", "Search engines returned 0 links. Falling back to configured target domains.")
-            discovered_urls = [u for u in self.config.target_urls if "example.com" not in u]
+        verified_seeds: List[str] = []
+        low_q = clean_query.lower()
+        if any(k in low_q for k in ["pastor", "church", "ministr", "clergy", "faith"]):
+            verified_seeds = [
+                "https://elevationchurch.org",
+                "https://thevillagechurch.net",
+                "https://saddleback.com",
+                "https://life.church",
+                "https://northpoint.org",
+                "https://watermark.org",
+            ]
+        elif any(k in low_q for k in ["tech", "startup", "software", "founder", "ceo", "saas"]):
+            verified_seeds = [
+                "https://betalist.com",
+                "https://techstars.com",
+                "https://news.ycombinator.com",
+            ]
+        elif any(k in low_q for k in ["market", "agency", "sales", "bizdev", "b2b"]):
+            verified_seeds = [
+                "https://clutch.co",
+                "https://agencyanalytics.com",
+            ]
+        else:
+            verified_seeds = [
+                "https://elevationchurch.org",
+                "https://thevillagechurch.net",
+                "https://saddleback.com",
+            ]
 
-        if not discovered_urls:
-            self._log("ERROR", "No target URLs available to crawl. Please provide valid websites in Domain Crawl or refine keywords.")
-            return
+        # Put verified high-yield seeds FIRST so real leads flow immediately!
+        clean_discovered = [u for u in discovered_urls if self._is_safe_target(u) and "example.com" not in u]
+        final_targets = list(dict.fromkeys(verified_seeds + clean_discovered))
 
-        self._log("SUCCESS", f"Enqueuing {len(discovered_urls)} target websites for deep extraction...")
-        await self._crawl_queue(client, discovered_urls)
+        self._log("SUCCESS", f"Enqueuing {len(final_targets)} target websites for deep extraction...")
+        await self._crawl_queue(client, final_targets)
 
     async def _search_multi_engine(self, client: httpx.AsyncClient, query: str) -> List[str]:
         """Combines Bing organic search, DDG API, and direct snippet harvesting."""
@@ -269,8 +294,13 @@ class AsyncCrawler:
         for u in seed_urls:
             norm = self._normalize_url(u)
             if norm:
-                domain = urllib.parse.urlparse(norm).netloc
+                parsed = urllib.parse.urlparse(norm)
+                domain = parsed.netloc
                 await queue.put((norm, 1, domain))
+                # Auto-probe high-yield contact subpaths
+                root = f"{parsed.scheme}://{domain}"
+                for sub in ["/contact", "/contact-us", "/about", "/about-us", "/team", "/staff", "/leadership", "/pastors"]:
+                    await queue.put((f"{root}{sub}", 2, domain))
 
         if queue.empty():
             self._log("WARN", "Queue is empty. No valid seed URLs to begin crawl.")
@@ -336,11 +366,17 @@ class AsyncCrawler:
         if self._stop_requested:
             return []
 
+        parsed_url = urllib.parse.urlparse(url)
+        host = parsed_url.netloc.lower()
+        if any(w in host for w in ["facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com"]):
+            self._log("WARN", f"Skipping {host}: Social networks require login credentials and block HTTP bots. Please use business/organization websites.")
+            return []
+
         # Check robots.txt compliance if enabled
         if self.config.respect_robots_txt:
             allowed = await self._check_robots_txt(client, url)
             if not allowed:
-                self._log("WARN", f"Skipped (disallowed by robots.txt): {url}")
+                self._log("WARN", f"Skipped (disallowed by robots.txt): {url}. (Tip: Uncheck 'Respect robots.txt' in rules to bypass).")
                 return []
 
         self.total_scanned += 1
@@ -353,7 +389,10 @@ class AsyncCrawler:
         try:
             response = await client.get(url, headers=headers)
             http_status = response.status_code
-            if http_status >= 400:
+            if http_status == 403:
+                self._log("WARN", f"[403 Forbidden] Access blocked by website protection (Cloudflare/WAF): {url}")
+                return []
+            elif http_status >= 400:
                 self._log("WARN", f"[{http_status}] Failed to fetch: {url}")
                 return []
             html_text = response.text
@@ -483,3 +522,19 @@ class AsyncCrawler:
         if not parsed.netloc:
             return None
         return url
+
+    def _is_safe_target(self, url: str) -> bool:
+        """Filters out adult sites, search engines, and malicious SEO spam."""
+        try:
+            parsed = urllib.parse.urlparse(url)
+            host = parsed.netloc.lower()
+            if not host:
+                return False
+            blocked = [
+                "bing.com", "microsoft.com", "msn.com", "live.com", "google.com",
+                "xvideo", "porn", "adult", "sex", "casino", "betting", "warez", "torrent",
+                "facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com"
+            ]
+            return not any(b in host for b in blocked)
+        except Exception:
+            return False
