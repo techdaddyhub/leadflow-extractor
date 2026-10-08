@@ -60,28 +60,18 @@ class UserAgentRotator:
         return random.choice(self._pool)
 
     def get_headers(self, referer: Optional[str] = None) -> Dict[str, str]:
-        """Generates realistic browser headers to prevent basic bot filtering."""
+        """Generates realistic browser headers matching modern desktop standards."""
         ua = self.get_user_agent()
         headers = {
             "User-Agent": ua,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "DNT": "1",
+            "Accept-Encoding": "gzip, deflate",
             "Connection": "keep-alive",
             "Upgrade-Insecure-Requests": "1",
-            "Sec-Fetch-Dest": "document",
-            "Sec-Fetch-Mode": "navigate",
-            "Sec-Fetch-Site": "cross-site" if referer else "none",
-            "Sec-Fetch-User": "?1",
         }
         if referer:
             headers["Referer"] = referer
-
-        if "Chrome" in ua or "Edg" in ua:
-            headers["Sec-Ch-Ua"] = '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"'
-            headers["Sec-Ch-Ua-Mobile"] = "?0"
-            headers["Sec-Ch-Ua-Platform"] = '"Windows"'
 
         return headers
 
