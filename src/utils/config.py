@@ -74,7 +74,7 @@ COMMON_COUNTRY_TLDS = {
 class CrawlConfig:
     """Session configuration for scraping engine."""
     mode: CrawlMode = CrawlMode.DOMAIN_CRAWL
-    target_urls: List[str] = field(default_factory=lambda: ["https://example.com"])
+    target_urls: List[str] = field(default_factory=list)
     search_query: str = ""
     country_tld: str = ""
     industry_niche: str = ""

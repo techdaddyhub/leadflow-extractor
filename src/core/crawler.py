@@ -1,11 +1,12 @@
 """
 LeadFlow Intelligence Suite - Async Crawler & Request Engine
 High-throughput, respectful HTTP/2 crawler with rate limiting, robots.txt compliance,
-search engine discovery, and domain depth boundaries.
+resilient multi-engine search discovery, and domain depth boundaries.
 """
 
 from __future__ import annotations
 import asyncio
+import base64
 import random
 import re
 import time
@@ -119,83 +120,125 @@ class AsyncCrawler:
                 self._log("SUCCESS", f"Session complete: Extracted {self.total_leads} leads across {self.total_scanned} pages.")
 
     async def _run_search_discovery(self, client: httpx.AsyncClient) -> None:
-        """Performs search engine discovery to collect target URLs, then deep-crawls them."""
+        """Performs multi-engine discovery to collect real target URLs, then deep-crawls them."""
         query_terms = [self.config.search_query.strip()]
         if self.config.industry_niche:
-            query_terms.append(f'"{self.config.industry_niche.strip()}"')
+            query_terms.append(self.config.industry_niche.strip())
         if self.config.role_query:
-            query_terms.append(f'"{self.config.role_query.strip()}"')
+            query_terms.append(self.config.role_query.strip())
         if self.config.country_tld:
             query_terms.append(f"site:.{self.config.country_tld.strip('.')}")
 
-        # Add contact discovery footprints
-        query_terms.append('("contact" OR "about" OR "email" OR "team")')
-        full_query = " ".join([t for t in query_terms if t])
-
-        self._log("INFO", f"Searching discovery engine with query: {full_query}")
+        # Core search query
+        clean_query = " ".join([t for t in query_terms if t])
+        self._log("INFO", f"Initiating multi-engine search discovery for: '{clean_query}'...")
 
         discovered_urls: List[str] = []
         try:
-            discovered_urls = await self._search_duckduckgo(client, full_query)
-            self._log("SUCCESS", f"Search engine returned {len(discovered_urls)} target domains/pages.")
+            discovered_urls = await self._search_multi_engine(client, clean_query)
         except Exception as e:
-            self._log("ERROR", f"Search query failed: {e}")
+            self._log("ERROR", f"Search discovery error: {e}")
 
         if not discovered_urls:
-            self._log("WARN", "No URLs discovered from search engine. Falling back to configured targets.")
-            discovered_urls = self.config.target_urls
+            self._log("WARN", "Search engines returned 0 links. Falling back to configured target domains.")
+            discovered_urls = [u for u in self.config.target_urls if "example.com" not in u]
 
+        if not discovered_urls:
+            self._log("ERROR", "No target URLs available to crawl. Please provide valid websites in Domain Crawl or refine keywords.")
+            return
+
+        self._log("SUCCESS", f"Enqueuing {len(discovered_urls)} target websites for deep extraction...")
         await self._crawl_queue(client, discovered_urls)
 
-    async def _search_duckduckgo(self, client: httpx.AsyncClient, query: str) -> List[str]:
-        """Queries DuckDuckGo HTML endpoint and extracts target links."""
-        url = "https://html.duckduckgo.com/html/"
-        data = {"q": query, "b": ""}
-        headers = self.ua_rotator.get_headers(referer="https://duckduckgo.com/")
+    async def _search_multi_engine(self, client: httpx.AsyncClient, query: str) -> List[str]:
+        """Combines Bing organic search, DDG API, and direct snippet harvesting."""
+        all_targets: List[str] = []
 
-        resp = await client.post(url, data=data, headers=headers)
-        if resp.status_code != 200:
-            self._log("WARN", f"DuckDuckGo returned HTTP {resp.status_code}")
-            return []
-
-        soup = BeautifulSoup(resp.text, "html.parser")
-        links: List[str] = []
-        for a in soup.find_all("a", class_="result__url", href=True):
-            raw_href = a["href"]
-            parsed_href = self._unwrap_ddg_url(raw_href)
-            if parsed_href and parsed_href.startswith("http") and "duckduckgo" not in parsed_href:
-                links.append(parsed_href)
-
-        # Fallback to general result snippets if class differs
-        if not links:
-            for a in soup.find_all("a", class_="result__snippet", href=True):
-                raw_href = a["href"]
-                parsed_href = self._unwrap_ddg_url(raw_href)
-                if parsed_href and parsed_href.startswith("http") and "duckduckgo" not in parsed_href:
-                    links.append(parsed_href)
-
-        return list(dict.fromkeys(links))[:30]
-
-    def _unwrap_ddg_url(self, href: str) -> Optional[str]:
-        """Extracts the destination URL from DDG redirect url."""
-        if "uddg=" in href:
+        # 1. Bing Organic Search with Base64 redirect unwrapping
+        bing_queries = [
+            f"{query} contact email",
+            f"{query} directory staff team",
+        ]
+        
+        for q in bing_queries:
+            if self._stop_requested:
+                break
             try:
-                parsed = urllib.parse.urlparse(href)
-                qs = urllib.parse.parse_qs(parsed.query)
-                if "uddg" in qs:
-                    return qs["uddg"][0]
-            except Exception:
-                pass
-        if href.startswith("//"):
-            return "https:" + href
-        return href
+                headers = self.ua_rotator.get_headers(referer="https://www.bing.com/")
+                params = {"q": q, "count": 25, "mkt": "en-US", "setlang": "en"}
+                resp = await client.get("https://www.bing.com/search", params=params, headers=headers, timeout=10.0)
+                if resp.status_code == 200:
+                    # Also directly check if search snippet has emails!
+                    raw_candidates = self.extractor.extract_from_html(resp.text, source_url="https://www.bing.com", http_status=200)
+                    for raw_email, name, base_conf in raw_candidates:
+                        processed = self.lead_filter.process(raw_email, name, "https://www.bing.com", 200, base_conf)
+                        if processed:
+                            email, full_name, domain, role, country_tld, conf = processed
+                            lead = ExtractedLead(
+                                email=email,
+                                domain=domain,
+                                extracted_name=full_name,
+                                role=role,
+                                country_tld=country_tld,
+                                confidence_score=conf,
+                                source_url="Search Engine Result",
+                                http_status=200,
+                                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                            )
+                            self.total_leads += 1
+                            if self.on_lead_found:
+                                self.on_lead_found(lead)
+
+                    # Extract target URLs from organic results
+                    soup = BeautifulSoup(resp.text, "html.parser")
+                    for a in soup.find_all("a", href=True):
+                        href = a["href"]
+                        if "/ck/a?!" in href and "u=" in href:
+                            qs = urllib.parse.parse_qs(urllib.parse.urlparse(href).query)
+                            if "u" in qs and qs["u"][0].startswith("a1"):
+                                raw = qs["u"][0][2:]
+                                raw += "=" * (-len(raw) % 4)
+                                try:
+                                    decoded = base64.urlsafe_b64decode(raw).decode(errors="ignore")
+                                    if decoded.startswith("http") and not any(x in decoded for x in ["bing.com", "microsoft.com", "msn.com"]):
+                                        all_targets.append(decoded)
+                                except Exception:
+                                    pass
+                        elif href.startswith("http") and not any(x in href for x in ["bing.com", "microsoft.com", "msn.com", "live.com"]):
+                            all_targets.append(href)
+            except Exception as e:
+                self._log("WARN", f"Bing query error: {e}")
+
+        # 2. DuckDuckGo Instant Topics API Fallback
+        try:
+            ddg_resp = await client.get("https://api.duckduckgo.com/", params={"q": query, "format": "json"}, timeout=8.0)
+            if ddg_resp.status_code == 200:
+                data = ddg_resp.json()
+                for topic in data.get("RelatedTopics", []):
+                    if "FirstURL" in topic:
+                        u = topic["FirstURL"]
+                        if u.startswith("http") and "duckduckgo.com" not in u:
+                            all_targets.append(u)
+                    elif "Topics" in topic:
+                        for sub in topic["Topics"]:
+                            if "FirstURL" in sub:
+                                u = sub["FirstURL"]
+                                if u.startswith("http") and "duckduckgo.com" not in u:
+                                    all_targets.append(u)
+        except Exception:
+            pass
+
+        # Deduplicate targets while preserving order
+        deduped = list(dict.fromkeys(all_targets))
+        self._log("INFO", f"Discovery engine gathered {len(deduped)} distinct destination targets.")
+        return deduped[:40]
 
     async def _run_bulk_crawl(self, client: httpx.AsyncClient) -> None:
         """Processes a bulk list of seed domains."""
         urls: List[str] = []
         for entry in self.config.target_urls:
             clean = entry.strip()
-            if not clean:
+            if not clean or "example.com" in clean:
                 continue
             if not clean.startswith("http://") and not clean.startswith("https://"):
                 clean = f"https://{clean}"
@@ -206,10 +249,22 @@ class AsyncCrawler:
 
     async def _run_deep_domain_crawl(self, client: httpx.AsyncClient) -> None:
         """Deep crawls single or multiple target websites."""
-        await self._crawl_queue(client, self.config.target_urls)
+        valid_targets = [u.strip() for u in self.config.target_urls if u.strip()]
+        if not valid_targets:
+            self._log("WARN", "No target URLs provided.")
+            return
+
+        # Check if user accidentally left example.com
+        if any("example.com" in u for u in valid_targets):
+            self._log("WARN", "Target contains 'example.com' (a reserved placeholder with no contact information). Please enter real websites.")
+
+        await self._crawl_queue(client, valid_targets)
 
     async def _crawl_queue(self, client: httpx.AsyncClient, seed_urls: List[str]) -> None:
-        """Asynchronous BFS link queue with depth tracking and concurrency limit."""
+        """
+        Asynchronous BFS link queue with depth tracking, active worker tracking,
+        and concurrency control.
+        """
         queue: asyncio.Queue[Tuple[str, int, str]] = asyncio.Queue()
         for u in seed_urls:
             norm = self._normalize_url(u)
@@ -217,10 +272,16 @@ class AsyncCrawler:
                 domain = urllib.parse.urlparse(norm).netloc
                 await queue.put((norm, 1, domain))
 
+        if queue.empty():
+            self._log("WARN", "Queue is empty. No valid seed URLs to begin crawl.")
+            return
+
         semaphore = asyncio.Semaphore(self.config.concurrency_limit)
+        active_workers = 0
 
         async def worker() -> None:
-            while not queue.empty() and not self._stop_requested:
+            nonlocal active_workers
+            while not self._stop_requested:
                 await self._pause_event.wait()
 
                 # Check ceiling limit
@@ -229,27 +290,33 @@ class AsyncCrawler:
                     self._stop_requested = True
                     break
 
+                # Cooperatively wait for work without immediately exiting
                 try:
-                    url, depth, root_domain = queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    break
-
-                if url in self.visited_urls:
-                    queue.task_done()
+                    url, depth, root_domain = await asyncio.wait_for(queue.get(), timeout=2.5)
+                except asyncio.TimeoutError:
+                    # If queue is empty AND no other worker is currently processing a page, we are done
+                    if active_workers == 0:
+                        break
                     continue
 
-                self.visited_urls.add(url)
+                active_workers += 1
+                try:
+                    if url in self.visited_urls:
+                        continue
 
-                async with semaphore:
-                    child_links = await self._process_single_page(client, url, depth, root_domain)
+                    self.visited_urls.add(url)
 
-                    # Enqueue child links if within max depth
-                    if depth < self.config.max_depth and not self._stop_requested:
-                        for child in child_links:
-                            if child not in self.visited_urls:
-                                await queue.put((child, depth + 1, root_domain))
+                    async with semaphore:
+                        child_links = await self._process_single_page(client, url, depth, root_domain)
 
-                queue.task_done()
+                        # Enqueue child links if within max depth
+                        if depth < self.config.max_depth and not self._stop_requested:
+                            for child in child_links:
+                                if child not in self.visited_urls:
+                                    await queue.put((child, depth + 1, root_domain))
+                finally:
+                    active_workers -= 1
+                    queue.task_done()
 
                 # Ethical jitter & rate limiting
                 delay = (self.config.request_delay_ms + random.randint(0, self.config.jitter_ms)) / 1000.0
@@ -326,6 +393,7 @@ class AsyncCrawler:
                     timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
                 )
                 self.total_leads += 1
+                self._log("SUCCESS", f"Found Lead: {email} ({full_name}) - {role}")
                 if self.on_lead_found:
                     self.on_lead_found(lead)
                 self._update_stats(url)
@@ -363,7 +431,7 @@ class AsyncCrawler:
                 lower_path = parsed.path.lower()
                 is_contact_page = any(k in lower_path for k in [
                     "contact", "about", "team", "people", "staff", "management",
-                    "leadership", "directory", "impressum", "connect", "reach-us"
+                    "leadership", "directory", "pastor", "clergy", "impressum", "connect", "reach-us"
                 ])
 
                 if is_contact_page:
@@ -415,4 +483,3 @@ class AsyncCrawler:
         if not parsed.netloc:
             return None
         return url
-

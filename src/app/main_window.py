@@ -264,8 +264,12 @@ class MainWindow(QMainWindow):
         v_dom.setContentsMargins(0, 0, 0, 0)
         v_dom.addWidget(QLabel("Target URL(s) (One per line or comma-separated):"))
         self.txt_domain_targets = QTextEdit()
-        self.txt_domain_targets.setPlaceholderText("https://example.com\nhttps://techstartup.io\nhttps://business.co.uk")
-        self.txt_domain_targets.setPlainText("https://example.com")
+        self.txt_domain_targets.setPlaceholderText(
+            "Enter target websites (one per line). Examples:\n"
+            "https://www.churchfinder.com\n"
+            "https://saddleback.com\n"
+            "https://elevationchurch.org"
+        )
         self.txt_domain_targets.setMaximumHeight(100)
         v_dom.addWidget(self.txt_domain_targets)
 
@@ -306,6 +310,24 @@ class MainWindow(QMainWindow):
         for label, val in COMMON_COUNTRY_TLDS.items():
             self.combo_country.addItem(label, val)
         v_search.addWidget(self.combo_country, 3, 1)
+
+        # Quick Presets Row
+        v_search.addWidget(QLabel("Niche Presets:"), 4, 0)
+        preset_row = QHBoxLayout()
+        btn_preset_pastor = QPushButton("✝️ Pastors & Churches")
+        btn_preset_pastor.clicked.connect(lambda: self._apply_preset("pastors church directory", "Churches", "Pastor"))
+        
+        btn_preset_founder = QPushButton("🚀 Tech Founders")
+        btn_preset_founder.clicked.connect(lambda: self._apply_preset("software SaaS startups", "Technology", "CEO / Founder"))
+        
+        btn_preset_sales = QPushButton("💼 Sales & Marketing")
+        btn_preset_sales.clicked.connect(lambda: self._apply_preset("b2b marketing agency", "Marketing", "VP Sales"))
+
+        preset_row.addWidget(btn_preset_pastor)
+        preset_row.addWidget(btn_preset_founder)
+        preset_row.addWidget(btn_preset_sales)
+        preset_row.addStretch()
+        v_search.addLayout(preset_row, 4, 1)
 
         # --- Sub-panel 3: Bulk Domain List ---
         self.panel_bulk = QWidget()
@@ -824,15 +846,31 @@ class MainWindow(QMainWindow):
 
         return config
 
+    def _apply_preset(self, keywords: str, niche: str, role: str) -> None:
+        self.edit_keywords.setText(keywords)
+        self.edit_industry.setText(niche)
+        self.edit_role_query.setText(role)
+        self._log("INFO", f"Applied search preset: '{keywords}' (Role: {role})")
+
     def _start_crawl(self) -> None:
         cfg = self._compile_current_config()
 
         # Sanity check targets
-        if cfg.mode == CrawlMode.DOMAIN_CRAWL and not cfg.target_urls:
-            QMessageBox.warning(self, "Missing Target", "Please specify at least one target website URL.")
-            return
+        if cfg.mode == CrawlMode.DOMAIN_CRAWL:
+            if not cfg.target_urls:
+                QMessageBox.warning(self, "Missing Target", "Please specify at least one target website URL.\n\nExample:\nhttps://www.churchfinder.com\nhttps://saddleback.com")
+                return
+            if all("example.com" in u.lower() for u in cfg.target_urls):
+                QMessageBox.information(
+                    self,
+                    "Placeholder Domain Notice",
+                    "'example.com' is an empty reserved domain with no contact information.\n\n"
+                    "Please enter real websites (such as church, business, agency, or directory URLs) to extract leads."
+                )
+                return
+
         if cfg.mode == CrawlMode.KEYWORD_SEARCH and not cfg.search_query:
-            QMessageBox.warning(self, "Missing Query", "Please specify search keywords for discovery.")
+            QMessageBox.warning(self, "Missing Query", "Please specify search keywords for discovery (or click a Niche Preset).")
             return
         if cfg.mode == CrawlMode.BULK_LIST and not cfg.target_urls:
             QMessageBox.warning(self, "Missing Domain List", "Please load or enter at least one target domain.")
