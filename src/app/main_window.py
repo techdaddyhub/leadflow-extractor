@@ -472,6 +472,8 @@ class MainWindow(QMainWindow):
         self.spin_batch_target.setRange(10, 5000)
         self.spin_batch_target.setValue(500)
         self.spin_batch_target.setSingleStep(100)
+        self.spin_batch_target.setMinimumHeight(36)
+        self.spin_batch_target.setMinimumWidth(110)
         limits_layout.addWidget(self.spin_batch_target)
 
         limits_layout.addSpacing(20)
@@ -481,13 +483,21 @@ class MainWindow(QMainWindow):
         self.spin_ceiling.setRange(50, 5000)
         self.spin_ceiling.setValue(5000)
         self.spin_ceiling.setSingleStep(500)
+        self.spin_ceiling.setMinimumHeight(36)
+        self.spin_ceiling.setMinimumWidth(110)
         limits_layout.addWidget(self.spin_ceiling)
 
         limits_layout.addStretch()
         layout.addWidget(limits_box)
 
         layout.addStretch()
-        return tab
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tab)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        return scroll
 
     def _on_mode_changed(self) -> None:
         self.panel_domain.setVisible(self.radio_domain.isChecked())
@@ -648,30 +658,35 @@ class MainWindow(QMainWindow):
     # TAB 3: AI & Smart Filters
     # ---------------------------------------------------------
     def _create_pipeline_tab(self) -> QWidget:
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(14)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(16)
 
         # Smart Extraction Filters
         filter_box = QGroupBox("Extraction & Cleaning Filters")
         v_filter = QVBoxLayout(filter_box)
-        v_filter.setSpacing(10)
+        v_filter.setContentsMargins(14, 18, 14, 14)
+        v_filter.setSpacing(12)
 
         self.chk_dedup = QCheckBox("In-Memory Deduplication: Prevent duplicate emails during crawl")
         self.chk_dedup.setChecked(True)
+        self.chk_dedup.setMinimumHeight(28)
         v_filter.addWidget(self.chk_dedup)
 
         self.chk_garbage = QCheckBox("Garbage & Honeypot Filtering: Strip media assets (.png, .webp), dummy emails, and honeypots")
         self.chk_garbage.setChecked(True)
+        self.chk_garbage.setMinimumHeight(28)
         v_filter.addWidget(self.chk_garbage)
 
         self.chk_obfuscation = QCheckBox("Obfuscation Unmasking: Decode patterns like 'user [at] domain [dot] com' and entities")
         self.chk_obfuscation.setChecked(True)
+        self.chk_obfuscation.setMinimumHeight(28)
         v_filter.addWidget(self.chk_obfuscation)
 
         self.chk_mx = QCheckBox("Domain MX Record Validation: Perform DNS verification to check if domain receives mail")
         self.chk_mx.setChecked(False)
+        self.chk_mx.setMinimumHeight(28)
         v_filter.addWidget(self.chk_mx)
 
         layout.addWidget(filter_box)
@@ -679,11 +694,15 @@ class MainWindow(QMainWindow):
         # Role Matcher Preferences
         roles_box = QGroupBox("Executive & Corporate Role Matcher")
         v_roles = QGridLayout(roles_box)
+        v_roles.setContentsMargins(14, 18, 14, 14)
+        v_roles.setVerticalSpacing(10)
+        v_roles.setHorizontalSpacing(16)
         self.role_checkboxes: Dict[str, QCheckBox] = {}
         row, col = 0, 0
         for role_name in ROLE_PATTERNS.keys():
             cb = QCheckBox(f"{role_name}")
             cb.setChecked(True)
+            cb.setMinimumHeight(28)
             self.role_checkboxes[role_name] = cb
             v_roles.addWidget(cb, row, col)
             col += 1
@@ -696,32 +715,46 @@ class MainWindow(QMainWindow):
         # Ethical & Operational Safeguards
         safe_box = QGroupBox("Ethical & Operational Safeguards")
         v_safe = QGridLayout(safe_box)
-        v_safe.setSpacing(12)
+        v_safe.setContentsMargins(14, 18, 14, 14)
+        v_safe.setVerticalSpacing(14)
+        v_safe.setHorizontalSpacing(16)
 
-        self.chk_robots = QCheckBox("Respect robots.txt: Comply with site crawl restrictions")
-        self.chk_robots.setChecked(True)
+        self.chk_robots = QCheckBox("Respect robots.txt: Comply with site crawl restrictions (Uncheck to bypass site crawl blocks)")
+        self.chk_robots.setChecked(False)
+        self.chk_robots.setMinimumHeight(28)
         v_safe.addWidget(self.chk_robots, 0, 0, 1, 2)
 
-        v_safe.addWidget(QLabel("Request Delay Jitter (ms):"), 1, 0)
+        lbl_delay = QLabel("Request Delay Jitter (ms):")
+        lbl_delay.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_safe.addWidget(lbl_delay, 1, 0)
+
         delay_layout = QHBoxLayout()
+        delay_layout.setSpacing(10)
         self.spin_delay = QSpinBox()
         self.spin_delay.setRange(100, 3000)
         self.spin_delay.setValue(400)
         self.spin_delay.setSingleStep(50)
+        self.spin_delay.setMinimumHeight(36)
+        self.spin_delay.setMinimumWidth(110)
         delay_layout.addWidget(self.spin_delay)
-        delay_layout.addWidget(QLabel("ms  +"))
+        delay_layout.addWidget(QLabel("ms base  +"))
 
         self.spin_jitter = QSpinBox()
         self.spin_jitter.setRange(0, 1000)
         self.spin_jitter.setValue(200)
         self.spin_jitter.setSingleStep(50)
+        self.spin_jitter.setMinimumHeight(36)
+        self.spin_jitter.setMinimumWidth(110)
         delay_layout.addWidget(self.spin_jitter)
         delay_layout.addWidget(QLabel("ms random jitter"))
         delay_layout.addStretch()
         v_safe.addLayout(delay_layout, 1, 1)
 
-        v_safe.addWidget(QLabel("User-Agent Rotation:"), 2, 0)
+        lbl_ua = QLabel("User-Agent Rotation:")
+        lbl_ua.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_safe.addWidget(lbl_ua, 2, 0)
         self.combo_ua = QComboBox()
+        self.combo_ua.setMinimumHeight(36)
         self.combo_ua.addItems([
             "Rotating (Modern Browsers)",
             "Chrome Only (Windows/Mac)",
@@ -730,15 +763,25 @@ class MainWindow(QMainWindow):
         ])
         v_safe.addWidget(self.combo_ua, 2, 1)
 
-        v_safe.addWidget(QLabel("Worker Concurrency Limit:"), 3, 0)
+        lbl_conc = QLabel("Worker Concurrency Limit:")
+        lbl_conc.setStyleSheet("font-weight: 600; color: #cbd5e1;")
+        v_safe.addWidget(lbl_conc, 3, 0)
         self.spin_concurrency = QSpinBox()
         self.spin_concurrency.setRange(1, 20)
         self.spin_concurrency.setValue(8)
+        self.spin_concurrency.setMinimumHeight(36)
+        self.spin_concurrency.setMinimumWidth(110)
         v_safe.addWidget(self.spin_concurrency, 3, 1)
 
         layout.addWidget(safe_box)
         layout.addStretch()
-        return tab
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(content)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        return scroll
 
     # ---------------------------------------------------------
     # TAB 4: Export & Intelligence

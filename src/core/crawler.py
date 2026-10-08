@@ -149,23 +149,39 @@ class AsyncCrawler:
                 "https://life.church",
                 "https://northpoint.org",
                 "https://watermark.org",
+                "https://calvarycch.org",
+                "https://cccm.com",
+                "https://believersportal.com/list-nigerian-pastors/",
+                "https://nigerianleaders.com/most-powerful-and-influential-pastors-in-nigeria/",
+                "https://churchfinder.com",
+                "https://pastors.com",
+                "https://hillsong.com",
+                "https://lakewoodchurch.com",
             ]
         elif any(k in low_q for k in ["tech", "startup", "software", "founder", "ceo", "saas"]):
             verified_seeds = [
                 "https://betalist.com",
                 "https://techstars.com",
                 "https://news.ycombinator.com",
+                "https://startups.com",
+                "https://f6s.com",
+                "https://producthunt.com",
             ]
         elif any(k in low_q for k in ["market", "agency", "sales", "bizdev", "b2b"]):
             verified_seeds = [
                 "https://clutch.co",
                 "https://agencyanalytics.com",
+                "https://upcity.com",
+                "https://goodfirms.co",
+                "https://designrush.com",
             ]
         else:
             verified_seeds = [
                 "https://elevationchurch.org",
                 "https://thevillagechurch.net",
                 "https://saddleback.com",
+                "https://betalist.com",
+                "https://clutch.co",
             ]
 
         # Put verified high-yield seeds FIRST so real leads flow immediately!
@@ -176,21 +192,22 @@ class AsyncCrawler:
         await self._crawl_queue(client, final_targets)
 
     async def _search_multi_engine(self, client: httpx.AsyncClient, query: str) -> List[str]:
-        """Combines Bing organic search, DDG API, and direct snippet harvesting."""
+        """Combines multi-page Bing, Yahoo, and organic snippet harvesting."""
         all_targets: List[str] = []
 
-        # 1. Bing Organic Search with Base64 redirect unwrapping
+        # 1. Multi-page Bing Organic Search
         bing_queries = [
-            f"{query} contact email",
-            f"{query} directory staff team",
+            (f"{query} contact email", 0),
+            (f"{query} staff team leadership", 20),
+            (f"{query} directory website", 0),
         ]
         
-        for q in bing_queries:
+        for q, offset in bing_queries:
             if self._stop_requested:
                 break
             try:
                 headers = self.ua_rotator.get_headers(referer="https://www.bing.com/")
-                params = {"q": q, "count": 25, "mkt": "en-US", "setlang": "en"}
+                params = {"q": q, "count": 25, "first": offset, "mkt": "en-US", "setlang": "en"}
                 resp = await client.get("https://www.bing.com/search", params=params, headers=headers, timeout=10.0)
                 if resp.status_code == 200:
                     # Also directly check if search snippet has emails!
@@ -225,38 +242,44 @@ class AsyncCrawler:
                                 raw += "=" * (-len(raw) % 4)
                                 try:
                                     decoded = base64.urlsafe_b64decode(raw).decode(errors="ignore")
-                                    if decoded.startswith("http") and not any(x in decoded for x in ["bing.com", "microsoft.com", "msn.com"]):
+                                    if decoded.startswith("http") and self._is_safe_target(decoded):
                                         all_targets.append(decoded)
                                 except Exception:
                                     pass
-                        elif href.startswith("http") and not any(x in href for x in ["bing.com", "microsoft.com", "msn.com", "live.com"]):
+                        elif href.startswith("http") and self._is_safe_target(href):
                             all_targets.append(href)
             except Exception as e:
-                self._log("WARN", f"Bing query error: {e}")
+                self._log("WARN", f"Bing query notice: {e}")
 
-        # 2. DuckDuckGo Instant Topics API Fallback
-        try:
-            ddg_resp = await client.get("https://api.duckduckgo.com/", params={"q": query, "format": "json"}, timeout=8.0)
-            if ddg_resp.status_code == 200:
-                data = ddg_resp.json()
-                for topic in data.get("RelatedTopics", []):
-                    if "FirstURL" in topic:
-                        u = topic["FirstURL"]
-                        if u.startswith("http") and "duckduckgo.com" not in u:
-                            all_targets.append(u)
-                    elif "Topics" in topic:
-                        for sub in topic["Topics"]:
-                            if "FirstURL" in sub:
-                                u = sub["FirstURL"]
-                                if u.startswith("http") and "duckduckgo.com" not in u:
-                                    all_targets.append(u)
-        except Exception:
-            pass
+        # 2. Multi-page Yahoo Search
+        yahoo_queries = [
+            (f"{query} contact email", 1),
+            (f"{query} directory staff", 11),
+        ]
+        for yq, offset in yahoo_queries:
+            if self._stop_requested:
+                break
+            try:
+                headers = self.ua_rotator.get_headers(referer="https://search.yahoo.com/")
+                y_resp = await client.get("https://search.yahoo.com/search", params={"p": yq, "b": offset}, headers=headers, timeout=10.0)
+                if y_resp.status_code == 200:
+                    y_soup = BeautifulSoup(y_resp.text, "html.parser")
+                    for a in y_soup.find_all("a", href=True):
+                        href = a["href"]
+                        if "RU=" in href:
+                            raw = href.split("RU=")[1].split("/")[0]
+                            decoded = urllib.parse.unquote(raw)
+                            if decoded.startswith("http") and self._is_safe_target(decoded):
+                                all_targets.append(decoded)
+                        elif href.startswith("http") and self._is_safe_target(href):
+                            all_targets.append(href)
+            except Exception:
+                pass
 
         # Deduplicate targets while preserving order
         deduped = list(dict.fromkeys(all_targets))
-        self._log("INFO", f"Discovery engine gathered {len(deduped)} distinct destination targets.")
-        return deduped[:40]
+        self._log("INFO", f"Discovery engine gathered {len(deduped)} distinct destination targets across engines.")
+        return deduped[:60]
 
     async def _run_bulk_crawl(self, client: httpx.AsyncClient) -> None:
         """Processes a bulk list of seed domains."""
@@ -322,7 +345,7 @@ class AsyncCrawler:
 
                 # Cooperatively wait for work without immediately exiting
                 try:
-                    url, depth, root_domain = await asyncio.wait_for(queue.get(), timeout=2.5)
+                    url, depth, root_domain = await asyncio.wait_for(queue.get(), timeout=6.0)
                 except asyncio.TimeoutError:
                     # If queue is empty AND no other worker is currently processing a page, we are done
                     if active_workers == 0:
@@ -343,7 +366,16 @@ class AsyncCrawler:
                         if depth < self.config.max_depth and not self._stop_requested:
                             for child in child_links:
                                 if child not in self.visited_urls:
-                                    await queue.put((child, depth + 1, root_domain))
+                                    c_parsed = urllib.parse.urlparse(child)
+                                    c_dom = c_parsed.netloc
+                                    await queue.put((child, depth + 1, c_dom))
+                                    # If external organization domain discovered, auto-probe its contact paths
+                                    if c_dom and not self._is_same_domain(c_dom, root_domain):
+                                        c_root = f"{c_parsed.scheme}://{c_dom}"
+                                        for c_sub in ["/contact", "/about", "/team", "/staff", "/leadership", "/pastors"]:
+                                            probe_target = f"{c_root}{c_sub}"
+                                            if probe_target not in self.visited_urls:
+                                                await queue.put((probe_target, depth + 1, c_dom))
                 finally:
                     active_workers -= 1
                     queue.task_done()
@@ -462,9 +494,12 @@ class AsyncCrawler:
                 clean_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
                 # Boundary check: internal domain only?
-                if self.config.follow_internal_only:
+                if self.config.follow_internal_only and self.config.mode != CrawlMode.KEYWORD_SEARCH:
                     if not self._is_same_domain(parsed.netloc, root_domain):
                         continue
+
+                if not self._is_safe_target(clean_url):
+                    continue
 
                 # Priority for pages likely containing contact information
                 lower_path = parsed.path.lower()
@@ -480,7 +515,7 @@ class AsyncCrawler:
         except Exception:
             pass
 
-        return list(dict.fromkeys(links))[:25]  # Cap child fanout per page
+        return list(dict.fromkeys(links))[:50]  # Cap child fanout per page
 
     def _is_same_domain(self, netloc1: str, netloc2: str) -> bool:
         """Checks if two hostnames belong to the same registered root."""

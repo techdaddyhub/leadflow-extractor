@@ -44,12 +44,13 @@ def build():
         "--clean",
     ]
 
-    # Add icon if available
+    # Add icon and assets bundle
+    assets_dir = root_dir / "assets"
     if icon_file.exists():
         pyinstaller_args.append(f"--icon={icon_file}")
-        # Add assets folder to bundle
+    if assets_dir.exists():
         sep = ";" if sys.platform == "win32" else ":"
-        pyinstaller_args.append(f"--add-data={icon_file}{sep}assets")
+        pyinstaller_args.append(f"--add-data={assets_dir}{sep}assets")
 
     # Add hidden imports
     hidden_imports = [
